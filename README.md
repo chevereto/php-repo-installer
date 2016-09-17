@@ -1,8 +1,12 @@
 PHP repo installer
 =
 
+<img src="https://chevereto.com/src/img/screens/extra/web-installer.jpg">
+
 ###About this repo
 This is web installer file that allows you to easily install any given GitHub repo. It uses pure PHP and it doesn't require you to install GIT on your server, enable PHP shell access or anything extra.
+
+It also has a very distinctive keygen inspired design with MOD background music, scanlines, screen jittering, etc.
 
 ###How to use it
 1. Download and edit the `$settings` array that you will find at the beginning of the file.
