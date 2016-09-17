@@ -6,8 +6,8 @@ This is web installer file that allows you to easily install any given GitHub re
 
 ###How to use it
 1. Download and edit the `$settings` array that you will find at the beginning of the file.
-2. Upload this file to your target destination.
-3. Open your website target destination URL and follow up the install process.
+2. Upload this file to your target destination (usually the `public_html` folder).
+3. Open your website target destination URL and follow the install process.
 
 By default this installs [Chevereto/Chevereto-Free](https://github.com/Chevereto/Chevereto-Free) but the file includes examples to install Drupal, WordPress, PrestaShop, etc. It can be used to install any public GitHub repo.
 
