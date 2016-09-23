@@ -285,6 +285,7 @@ function random_string($length) {
 	return substr(bin2hex($r), 0, $length);
 }
 try {
+	error_reporting(0);
 	if(isset($_REQUEST['action'])) {
 		set_time_limit(600); // Allow up to five minutes...
 		$temp_dir = ROOT_PATH;
@@ -308,22 +309,22 @@ try {
 				if($download === FALSE) {
 					throw new Exception(sprintf("Can't fetch %s from GitHub (file_get_contents)", $settings['repo']), 400);
 				}
-				$github_json = json_decode($download, TRUE);
+				$download_json = json_decode($download);
 				if(json_last_error() == JSON_ERROR_NONE) {
-					throw new Exception("Can't proceed with update procedure");
+					throw new Exception("Can't proceed with install procedure");
 				} else {
-					// Get Content-Disposition header from GitHub
+					// Get file content-disposition header
 					foreach($http_response_header as $header) {
-						if(preg_match('/^Content-Disposition:.*filename=(.*)$/i', $header, $matches)) {
+						if(preg_match('/^Content-Disposition:.*filename=(?:["\']?)([\w\s-.]+)(?:["\']?)$/i', $header, $matches)) {
 							$zip_local_filename = str_replace_last('.zip', '_' . random_string(24) . '.zip', $matches[1]);
 							break;
 						}
 					}
 					if(!isset($zip_local_filename)) {
-						throw new Exception("Can't grab content-disposition header from GitHub");
+						throw new Exception("Can't grab file content-disposition header");
 					}
 					if(file_put_contents($temp_dir . $zip_local_filename, $download) === FALSE) {
-						throw new Exception("Can't save file");
+						throw new Exception("Can't save file " . $temp_dir . $zip_local_filename);
 					}
 					$json_array = [
 						'success' => [
@@ -409,13 +410,17 @@ try {
 <?php if(isset($settings['logoUrl'])) { ?><link rel="shortcut icon" href="<?php echo $settings['logoUrl']; ?>"><?php } ?>
 
 <style type="text/css">
+	* {
+		color: #dce6e6;
+		line-height: 1.45;
+		font-family: Monaco, Consolas, "Lucida Console", monospace;
+		text-shadow: 2px 2px 1px rgba(0,0,0,.9);
+	}
 	body, html {
 		min-height: 100%;
 		padding: 0;
 		margin: 0;
-		background: #000;
-		color: rgb(220,230,230);
-		
+		background: #000;		
 	}
 	::selection {
 		color: rgb(20,30,30);
@@ -556,7 +561,6 @@ try {
 		.status--ok {
 			color: #00FF00;
 		}
-	
 </style>
 </head>
 <body>
@@ -566,7 +570,7 @@ try {
 		<?php if(isset($settings['logoUrl'])) { ?><img class="logo" src="<?php echo $settings['logoUrl']; ?>"><?php } ?>
 	</div>
 
-<div id="terminal">PHP GITHUB REPO INSTALLER v1.0
+<div id="terminal">PHP GITHUB REPO INSTALLER v1.1
 https://github.com/Chevereto/php-repo-installer
 --
 
@@ -718,7 +722,7 @@ To use another path close this tab and move this file somewhere else.
 				},
 				extract: function(callback) {
 					var _this = this;
-					writeConsoleCommand("Extracting downloaded file, this could take a while...");
+					writeConsoleCommand("Extracting downloaded file, this could take a while");
 					$.ajax({
 						url: url,
 						data: {action: "extract", file: _this.vars.target_filename},
@@ -736,9 +740,9 @@ To use another path close this tab and move this file somewhere else.
 								writeLine("Process completed!");
 								if(settings.redirect) {
 									writeLineBreak();
-									writeLine(['Redirecting ' + (typeof settings.timeout.start == "number" ? ('in <span class="countdown">' + settings.timeout.start + '</span>') : 'right now')], function() {
-										if(typeof settings.timeout.start === "number") {
-											countdown(settings.timeout.start, function() {
+									writeLine(['Redirecting ' + (typeof settings.timeout.redirection == "number" ? ('in <span class="countdown">' + settings.timeout.redirection + '</span>') : 'right now')], function() {
+										if(typeof settings.timeout.redirection === "number") {
+											countdown(settings.timeout.redirection, function() {
 												window.location = redirectUrl;
 											});
 										} else {
