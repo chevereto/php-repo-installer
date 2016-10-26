@@ -7,9 +7,9 @@ PHP repo installer
 This is web installer file that allows you to easily install any given GitHub repo. It uses pure PHP and it doesn't require you to install GIT on your server, enable PHP shell access or anything extra.
 
 ###How to use it
-1. Download and edit the `$settings` array that you will find at the beginning of the file.
-2. Upload this file to your target destination.
-3. Open your website target destination URL and follow up the install process.
+1. Download and edit the `$settings` array that you will find at the beginning of the file
+2. Upload this file to your target destination
+3. Open your website target destination URL and follow up the install process
 
 By default this installs [Chevereto/Chevereto-Free](https://github.com/Chevereto/Chevereto-Free) but the file includes examples to install Drupal, WordPress, PrestaShop, etc. It can be used to install any public GitHub repo.
 

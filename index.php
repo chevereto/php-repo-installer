@@ -113,6 +113,14 @@ if (class_exists('ZipArchive')) {
 		}
 	}
 }
+function debug($arguments) {
+	if(empty($arguments)) return;
+	echo '<pre>';
+	foreach(func_get_args() as $value) {
+		print_r($value);
+	}
+	echo '</pre>';
+}
 function json_error($args) {
 	if(func_num_args($args) == 1 and is_object($args)) {
 		if(method_exists($args, 'getMessage') and method_exists($args, 'getCode')) {
@@ -284,6 +292,123 @@ function random_string($length) {
 	}
 	return substr(bin2hex($r), 0, $length);
 }
+function fetch_url($url, $file=NULL) {
+	if(!$url) {
+		throw new Exception('missing $url in ' . __FUNCTION__);
+		return false;
+	}
+	if(ini_get('allow_url_fopen') !== 1 && !function_exists('curl_init')) {
+		throw new Exception("Fatal error in " .__FUNCTION__. ": cURL isn't installed and allow_url_fopen is disabled. Can't perform HTTP requests.");
+		return FALSE;
+	}
+
+	if(ini_get('allow_url_fopen') !== 1 && !function_exists('curl_init')) {
+		throw new Exception("Fatal error in " .__FUNCTION__. ": cURL isn't installed and allow_url_fopen is disabled. Can't perform HTTP requests.");
+		return FALSE;
+	}
+
+	// File get contents is the failover fn
+	$fn = (!function_exists('curl_init') ? 'fgc' : 'curl'); 
+	
+	$content_disposition_regex = '/\bContent-Disposition:.*filename=(?:["\']?)(.*)(?:["\']?)\b/i';
+	
+	if(is_dir($file)) {
+		$dir = rtrim($file, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+		$filename = 'download_' . random_string(8) . '-' . time();
+		$file = $dir . $filename;
+	}
+	
+	if($fn == 'curl') {
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_USERAGENT, 'Chevereto/php-repo-installer');
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($ch, CURLOPT_AUTOREFERER, 1);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+		curl_setopt($ch, CURLOPT_FAILONERROR, 0);
+		curl_setopt($ch, CURLOPT_ENCODING, 'gzip'); // this needs zlib output compression enabled (php)
+		curl_setopt($ch, CURLOPT_VERBOSE, 0);
+		
+		if($file) {
+			if(isset($dir)) {
+				$header_filename = $filename . '-header.txt';
+				$header_file = $dir . $header_filename;
+				$header_out = fopen($header_file, 'w');
+				curl_setopt($ch, CURLOPT_WRITEHEADER, $header_out);
+			}
+			// Save the file to $file destination
+			$out = @fopen($file, 'wb');
+			if(!$out) {
+				throw new Exception("Can't open " . __FUNCTION__ . "() file for read and write");
+				return FALSE;
+			}
+			curl_setopt($ch, CURLOPT_FILE, $out);
+			$result = @curl_exec($ch);
+			if(is_resource($out)) {
+				@fclose($out);
+			}
+			if(is_resource($header_out)) {
+				@fclose($header_out);
+			}
+			if(isset($dir) && is_file($header_file)) {
+				$headers = @file_get_contents($header_file);
+				if($headers && preg_match($content_disposition_regex, $headers, $matches)) {
+					$downloaded_file = $dir . $matches[1];
+					@rename($file, $downloaded_file);
+				}
+				@unlink($header_file);
+			}
+			return $downloaded_file;
+		} else {
+			// Return the file string
+			$file_get_contents = @curl_exec($ch);
+		}
+		if(curl_errno($ch)) {
+			$curl_error = curl_error($ch);
+			curl_close($ch);
+			throw new Exception('Curl error: ' . $curl_error);
+			return false;
+		}
+		if($file == NULL) {
+			curl_close($ch);
+			return $file_get_contents;
+		}
+	} else {
+		$context = stream_context_create([
+			'http' => [
+				'ignore_errors' => TRUE,
+				'method'		=> 'GET',
+				'header'		=> 'User-agent: Chevereto/php-repo-installer' . "\r\n"
+			],
+		]);
+		$result = file_get_contents($url, FALSE, $context);
+		if(!$result) {
+			throw new Exception("file_get_contents: can't fetch target URL");
+			return false;
+		}
+		if($file) {
+			if(isset($dir)) {
+				// Get file content-disposition header
+				foreach($http_response_header as $header) {
+					if(preg_match($content_disposition_regex, $header, $matches)) {
+						$file = $dir . $matches[1];
+						break;
+					}
+				}
+			}
+			if(file_put_contents($file, $result) === FALSE) {
+				throw new Exception("file_put_contents: can't fetch target URL");
+				return false;
+			}
+			return $file;
+		} else {
+			return $result;
+		}
+	}
+}
 try {
 	error_reporting(0);
 	if(isset($_REQUEST['action'])) {
@@ -296,50 +421,32 @@ try {
 		if(!is_writable(SELF)) {
 			throw new Exception(sprintf("Can't write into %s file", $temp_dir));
 		}
-		$context = stream_context_create([
-		'http'=> [
-			'method' => 'GET',
-			'header' => "User-agent: " . $settings['repo'] . "\r\n"
-			]
-		]);
 		switch($_REQUEST['action']) {
 			case 'download':
 				$zipball_url = 'https://api.github.com/repos/' . $settings['repo'] . '/zipball';
-				$download = file_get_contents($zipball_url, FALSE, $context);
+				$download = fetch_url($zipball_url, __DIR__);
 				if($download === FALSE) {
-					throw new Exception(sprintf("Can't fetch %s from GitHub (file_get_contents)", $settings['repo']), 400);
+					throw new Exception(sprintf("Can't fetch %s from GitHub (fetch_url)", $settings['repo']), 400);
 				}
 				$download_json = json_decode($download);
 				if(json_last_error() == JSON_ERROR_NONE) {
 					throw new Exception("Can't proceed with install procedure");
 				} else {
-					// Get file content-disposition header
-					foreach($http_response_header as $header) {
-						if(preg_match('/^Content-Disposition:.*filename=(?:["\']?)([\w\s-.]+)(?:["\']?)$/i', $header, $matches)) {
-							$zip_local_filename = str_replace_last('.zip', '_' . random_string(24) . '.zip', $matches[1]);
-							break;
-						}
-					}
-					if(!isset($zip_local_filename)) {
-						throw new Exception("Can't grab file content-disposition header");
-					}
-					if(file_put_contents($temp_dir . $zip_local_filename, $download) === FALSE) {
-						throw new Exception("Can't save file " . $temp_dir . $zip_local_filename);
-					}
+					$zip_local_filename = str_replace_last('.zip', '_' . random_string(8) . time() . '.zip', $download);
+					@rename($download, $zip_local_filename);
 					$json_array = [
 						'success' => [
 							'message'   => 'Download completed',
 							'code'      => 200
 						],
 						'download' => [
-							'filename' => $zip_local_filename
+							'filename' => basename($zip_local_filename)
 						]
 					];
 				}
 				$json_array['success'] = ['message' => 'OK'];
 			break;
 			case 'extract':
-				
 				$error_catch = [];
 				foreach(['ZipArchive', 'RecursiveIteratorIterator', 'RecursiveDirectoryIterator'] as $k => $v) {
 					if(!class_exists($v)) {
@@ -369,6 +476,7 @@ try {
 				if(empty($etag_short)) {
 					throw new Exception("Can't detect zipball short etag");
 				}
+				
                 // Test .zip
                 if(!is_readable($zip_file)) {
                     throw new Exception('Missing '.$zip_file.' file', 400);
@@ -384,7 +492,7 @@ try {
                     $zip->close();
                     @unlink($zip_file);
                 } else {
-                    throw new Exception(sprintf("Can't extract %s", $zip_file), 401);
+                    throw new Exception(strtr("Can't extract %f (%m)", ['%f' => $zip_file, '%m' => 'Zip open error']), 401);
                 }
                 $json_array['success'] = ['message' => 'OK', 'code' => 200];
 			break;
@@ -570,7 +678,7 @@ try {
 		<?php if(isset($settings['logoUrl'])) { ?><img class="logo" src="<?php echo $settings['logoUrl']; ?>"><?php } ?>
 	</div>
 
-<div id="terminal">PHP GITHUB REPO INSTALLER v1.1
+<div id="terminal">PHP GITHUB REPO INSTALLER v1.2
 https://github.com/Chevereto/php-repo-installer
 --
 
