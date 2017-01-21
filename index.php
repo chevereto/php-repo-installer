@@ -295,16 +295,13 @@ function random_string($length) {
 function fetch_url($url, $file=NULL) {
 	if(!$url) {
 		throw new Exception('missing $url in ' . __FUNCTION__);
-		return false;
 	}
 	if(ini_get('allow_url_fopen') !== 1 && !function_exists('curl_init')) {
 		throw new Exception("Fatal error in " .__FUNCTION__. ": cURL isn't installed and allow_url_fopen is disabled. Can't perform HTTP requests.");
-		return FALSE;
 	}
 
 	if(ini_get('allow_url_fopen') !== 1 && !function_exists('curl_init')) {
 		throw new Exception("Fatal error in " .__FUNCTION__. ": cURL isn't installed and allow_url_fopen is disabled. Can't perform HTTP requests.");
-		return FALSE;
 	}
 
 	// File get contents is the failover fn
@@ -343,7 +340,6 @@ function fetch_url($url, $file=NULL) {
 			$out = @fopen($file, 'wb');
 			if(!$out) {
 				throw new Exception("Can't open " . __FUNCTION__ . "() file for read and write");
-				return FALSE;
 			}
 			curl_setopt($ch, CURLOPT_FILE, $out);
 			$result = @curl_exec($ch);
@@ -353,15 +349,17 @@ function fetch_url($url, $file=NULL) {
 			if(is_resource($header_out)) {
 				@fclose($header_out);
 			}
-			if(isset($dir) && is_file($header_file)) {
-				$headers = @file_get_contents($header_file);
-				if($headers && preg_match($content_disposition_regex, $headers, $matches)) {
-					$downloaded_file = $dir . $matches[1];
-					@rename($file, $downloaded_file);
+			if(is_file($header_file)) {
+				if(isset($dir)) {
+					$headers = @file_get_contents($header_file);
+					if($headers && preg_match($content_disposition_regex, $headers, $matches)) {
+						$downloaded_file = $dir . $matches[1];
+						@rename($file, $downloaded_file);
+					}
 				}
 				@unlink($header_file);
 			}
-			return $downloaded_file;
+			return $downloaded_file; // file || null
 		} else {
 			// Return the file string
 			$file_get_contents = @curl_exec($ch);
@@ -370,7 +368,6 @@ function fetch_url($url, $file=NULL) {
 			$curl_error = curl_error($ch);
 			curl_close($ch);
 			throw new Exception('Curl error: ' . $curl_error);
-			return false;
 		}
 		if($file == NULL) {
 			curl_close($ch);
@@ -387,7 +384,6 @@ function fetch_url($url, $file=NULL) {
 		$result = file_get_contents($url, FALSE, $context);
 		if(!$result) {
 			throw new Exception("file_get_contents: can't fetch target URL");
-			return false;
 		}
 		if($file) {
 			if(isset($dir)) {
@@ -401,7 +397,6 @@ function fetch_url($url, $file=NULL) {
 			}
 			if(file_put_contents($file, $result) === FALSE) {
 				throw new Exception("file_put_contents: can't fetch target URL");
-				return false;
 			}
 			return $file;
 		} else {
@@ -425,26 +420,20 @@ try {
 			case 'download':
 				$zipball_url = 'https://api.github.com/repos/' . $settings['repo'] . '/zipball';
 				$download = fetch_url($zipball_url, __DIR__);
-				if($download === FALSE) {
+				if($download === FALSE || is_null($download)) {
 					throw new Exception(sprintf("Can't fetch %s from GitHub (fetch_url)", $settings['repo']), 400);
 				}
-				$download_json = json_decode($download);
-				if(json_last_error() == JSON_ERROR_NONE) {
-					throw new Exception("Can't proceed with install procedure");
-				} else {
-					$zip_local_filename = str_replace_last('.zip', '_' . random_string(8) . time() . '.zip', $download);
-					@rename($download, $zip_local_filename);
-					$json_array = [
-						'success' => [
-							'message'   => 'Download completed',
-							'code'      => 200
-						],
-						'download' => [
-							'filename' => basename($zip_local_filename)
-						]
-					];
-				}
-				$json_array['success'] = ['message' => 'OK'];
+				$zip_local_filename = str_replace_last('.zip', '_' . random_string(8) . time() . '.zip', $download);
+				@rename($download, $zip_local_filename);
+				$json_array = [
+					'success' => [
+						'message'   => 'Download completed',
+						'code'      => 200
+					],
+					'download' => [
+						'filename' => basename($zip_local_filename)
+					]
+				];
 			break;
 			case 'extract':
 				$error_catch = [];
@@ -678,7 +667,7 @@ try {
 		<?php if(isset($settings['logoUrl'])) { ?><img class="logo" src="<?php echo $settings['logoUrl']; ?>"><?php } ?>
 	</div>
 
-<div id="terminal">PHP GITHUB REPO INSTALLER v1.3
+<div id="terminal">PHP GITHUB REPO INSTALLER v1.4
 https://github.com/Chevereto/php-repo-installer
 --
 
