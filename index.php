@@ -273,8 +273,8 @@ function str_replace_last($search, $replace, $subject) {
 }
 function random_string($length) {
 	switch(true) {
-		case function_exists('mcrypt_create_iv') :
-			$r = mcrypt_create_iv($length, MCRYPT_DEV_URANDOM);
+		case function_exists('random_bytes') :
+			$r = random_bytes($length);
 		break;
 		case function_exists('openssl_random_pseudo_bytes') :
 			$r = openssl_random_pseudo_bytes($length);
@@ -678,7 +678,7 @@ try {
 		<?php if(isset($settings['logoUrl'])) { ?><img class="logo" src="<?php echo $settings['logoUrl']; ?>"><?php } ?>
 	</div>
 
-<div id="terminal">PHP GITHUB REPO INSTALLER v1.2
+<div id="terminal">PHP GITHUB REPO INSTALLER v1.3
 https://github.com/Chevereto/php-repo-installer
 --
 
